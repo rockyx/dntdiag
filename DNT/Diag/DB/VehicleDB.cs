@@ -4,6 +4,9 @@ using System.Text;
 using System.Collections.Generic;
 
 #if __ANDROID__
+using System.IO;
+using Android.Content;
+using Android.Database.Sqlite;
 using Connection = Mono.Data.Sqlite.SqliteConnection;
 using Command = Mono.Data.Sqlite.SqliteCommand;
 using ConnectionStringBuilder = Mono.Data.Sqlite.SqliteConnectionStringBuilder;
@@ -34,18 +37,34 @@ namespace DNT.Diag.DB
 		{
 		}
 
+		public VehicleDB (string absoluteFilePath)
+		{
+			Open (absoluteFilePath);
+		}
+
 		public VehicleDB (string filePath, string dbName)
 		{
 			try {
-				ConnectionStringBuilder connstr = new ConnectionStringBuilder ();
 				StringBuilder sb = new StringBuilder ();
 				if (filePath.EndsWith ("/") || filePath.EndsWith ("\\")) {
 					sb.AppendFormat ("{0}{1}.db", filePath, dbName);
 				} else {
 					sb.AppendFormat ("{0}/{1}.db", filePath, dbName);
 				}
+				Open (sb.ToString ());
+			} catch (Exception ex) {
+				Close ();
+				throw new DatabaseException (
+					String.Format ("Cannot open vehicle database! file path = \"{0}\", database name = \"{1}\", error message: {2}", 
+						filePath, dbName, ex.Message));
+			}
+		}
 
-				connstr.DataSource = sb.ToString ();
+		public void Open (string absoluteFilePath)
+		{
+			try {
+				ConnectionStringBuilder connstr = new ConnectionStringBuilder ();
+				connstr.DataSource = absoluteFilePath;
 				conn = new Connection ();
 				conn.ConnectionString = connstr.ToString ();
 				conn.Open ();
@@ -75,12 +94,11 @@ namespace DNT.Diag.DB
 					conn);
 				liveDataCommand.Parameters.Add (":language", DbType.Binary);
 				liveDataCommand.Parameters.Add (":class", DbType.Binary);
-
 			} catch (Exception ex) {
 				Close ();
 				throw new DatabaseException (
-					String.Format ("Cannot open vehicle database! file path = \"{0}\", database name = \"{1}\", error message: {2}", 
-						filePath, dbName, ex.Message));
+					String.Format ("Cannot open vehicle database! file path = \"{0}\", error message: {1}", 
+						absoluteFilePath, ex.Message));
 			}
 		}
 
@@ -93,7 +111,7 @@ namespace DNT.Diag.DB
 			conn.Close ();
 		}
 
-		public byte[] queryCommand (string name, string cls)
+		public byte[] QueryCommand (string name, string cls)
 		{
 			Action ThrowException = () => {
 				throw new DatabaseException (String.Format ("Query command fail by name = {0}, class = {1}",
@@ -128,7 +146,7 @@ namespace DNT.Diag.DB
 			return null;
 		}
 
-		public string queryText (string name, string cls)
+		public string QueryText (string name, string cls)
 		{
 			Action ThrowException = () => {
 				throw new DatabaseException (String.Format ("Query text fail by name = {0}, class = {1}",
@@ -165,10 +183,10 @@ namespace DNT.Diag.DB
 			return null;
 		}
 
-		public TroubleCodeItem queryTroubleCode (string code, string cls)
+		public TroubleCodeItem QueryTroubleCode (string code, string cls)
 		{
 			Action ThrowException = () => {
-				throw new DatabaseException (String.Format("Query trouble code fail by code = {0}, class = {1}",
+				throw new DatabaseException (String.Format ("Query trouble code fail by code = {0}, class = {1}",
 					code, cls));
 			};
 
@@ -195,7 +213,7 @@ namespace DNT.Diag.DB
 						item.Code = code;
 						item.Content = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (0));
 
-						if (!reader.IsDBNull(1))
+						if (!reader.IsDBNull (1))
 							item.Description = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (1));
 						return item;
 					}
@@ -208,10 +226,10 @@ namespace DNT.Diag.DB
 			return null;
 		}
 
-		public LiveDataList queryLiveData (string cls)
+		public LiveDataList QueryLiveData (string cls)
 		{
 			Action ThrowException = () => {
-				throw new DatabaseException (String.Format("Query live data fail by class = {0}", cls));
+				throw new DatabaseException (String.Format ("Query live data fail by class = {0}", cls));
 			};
 
 			liveDataCommand.Prepare ();
@@ -233,30 +251,30 @@ namespace DNT.Diag.DB
 					while (reader.Read ()) {
 						LiveDataItem item = new LiveDataItem ();
 
-						item.ShortName = DBCrypto.DecryptToString(reader.GetFieldValue<byte[]> (0));
+						item.ShortName = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (0));
 
-						item.Content = DBCrypto.DecryptToString(reader.GetFieldValue<byte[]> (1));
+						item.Content = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (1));
 
-						item.Unit = reader.IsDBNull(2) ? "" : DBCrypto.DecryptToString(reader.GetFieldValue<byte[]> (2));
+						item.Unit = reader.IsDBNull (2) ? "" : DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (2));
 
-						item.DefaultValue = reader.IsDBNull(3) ? "" : DBCrypto.DecryptToString(reader.GetFieldValue<byte[]> (3));
+						item.DefaultValue = reader.IsDBNull (3) ? "" : DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (3));
 
-						if (!reader.IsDBNull(4) && !reader.IsDBNull(5)) {
-							item.CmdName = DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(4));
-							item.CmdClass = DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(5));
-							item.Command = queryCommand(item.CmdName, item.CmdClass);
+						if (!reader.IsDBNull (4) && !reader.IsDBNull (5)) {
+							item.CmdName = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (4));
+							item.CmdClass = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (5));
+							item.Command = QueryCommand (item.CmdName, item.CmdClass);
 						}
 
-						item.Description = reader.IsDBNull(6) ? "" : DBCrypto.DecryptToString(reader.GetFieldValue<byte[]> (6));
-						byte[] indexArray = DBCrypto.DecryptToBytes(reader.GetFieldValue<byte[]>(7));
-						int index = ((indexArray[3] & 0xFF) << 24) +
-							((indexArray[2] & 0xFF) << 16) +
-							((indexArray[1] & 0xFF) << 8) +
-							(indexArray[0] & 0xFF);
+						item.Description = reader.IsDBNull (6) ? "" : DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (6));
+						byte[] indexArray = DBCrypto.DecryptToBytes (reader.GetFieldValue<byte[]> (7));
+						int index = ((indexArray [3] & 0xFF) << 24) +
+						            ((indexArray [2] & 0xFF) << 16) +
+						            ((indexArray [1] & 0xFF) << 8) +
+						            (indexArray [0] & 0xFF);
 
 						item.IndexForSort = index;
 
-						list.Add(item);
+						list.Add (item);
 					}
 
 					return list;
@@ -268,6 +286,22 @@ namespace DNT.Diag.DB
 			ThrowException ();
 			return null;
 		}
+		#if __ANDROID__
+		public static void CopyDatabase (Context context, string dbName)
+		{
+			using (Stream istream = context.Assets.Open (dbName)) {
+				using (SQLiteDatabase db = context.OpenOrCreateDatabase (dbName, FileCreationMode.Private, null)) {
+				}
+				using (Stream ostream = new FileStream (context.GetDatabasePath (dbName).AbsolutePath, FileMode.Open)) {
+					byte[] buffer = new byte[1024];
+					int length = 0;
+					while ((length = istream.Read (buffer, 0, buffer.Length)) > 0) {
+						ostream.Write (buffer, 0, length);
+					}
+				}
+			}
+		}
+		#endif
 	}
 }
 
