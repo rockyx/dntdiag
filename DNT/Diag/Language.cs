@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace DNT.Diag.Android
+namespace DNT.Diag
 {
 	public enum Language
 	{
