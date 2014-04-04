@@ -58,12 +58,12 @@ namespace DNT.Diag
 
 		public static Timer FromMicroseconds (long time)
 		{
-			return new Timer (time * TICKS_PER_MICRO);
+			return new Timer ((long)(time * TICKS_PER_MICRO));
 		}
 
 		public static Timer FromMilliseconds (long time)
 		{
-			return new Timer (time * TICKS_PER_MILLI);
+			return new Timer ((long)(time * TICKS_PER_MILLI));
 		}
 
 		public static Timer FromSeconds (long time)
