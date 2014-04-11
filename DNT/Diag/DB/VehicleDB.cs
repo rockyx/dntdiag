@@ -25,283 +25,318 @@ using DNT.Diag.Data;
 
 namespace DNT.Diag.DB
 {
-	public sealed class VehicleDB
-	{
-		private Connection conn;
-		private Command cmdCommand;
-		private Command textCommand;
-		private Command troubleCodeCommand;
-		private Command liveDataCommand;
+    public sealed class VehicleDB
+    {
+        private Dictionary<string, byte[]> encryptMap;
+        private Dictionary<string, string> decryptMap;
+        private Dictionary<string, byte[]> commandMap;
+        private Connection conn;
+        private Command cmdCommand;
+        private Command textCommand;
+        private Command troubleCodeCommand;
+        private Command liveDataCommand;
 
-		static VehicleDB ()
-		{
-		}
+        static VehicleDB()
+        {
+        }
 
-		public VehicleDB (string absoluteFilePath)
-		{
-			Open (absoluteFilePath);
-		}
+        public VehicleDB(string absoluteFilePath)
+        {
+            encryptMap = new Dictionary<string, byte[]>();
+            decryptMap = new Dictionary<string, string>();
+            commandMap = new Dictionary<string, byte[]>();
+            Open(absoluteFilePath);
+        }
 
-		public VehicleDB (string filePath, string dbName)
-		{
-			try {
-				StringBuilder sb = new StringBuilder ();
-				if (filePath.EndsWith ("/") || filePath.EndsWith ("\\")) {
-					sb.AppendFormat ("{0}{1}.db", filePath, dbName);
-				} else {
-					sb.AppendFormat ("{0}/{1}.db", filePath, dbName);
-				}
-				Open (sb.ToString ());
-			} catch (Exception ex) {
-				Close ();
-				throw new DatabaseException (
-					String.Format ("Cannot open vehicle database! file path = \"{0}\", database name = \"{1}\", error message: {2}", 
-						filePath, dbName, ex.Message));
-			}
-		}
+        public VehicleDB(string filePath, string dbName)
+        {
+            try
+            {
+                StringBuilder sb = new StringBuilder();
+                if (filePath.EndsWith("/") || filePath.EndsWith("\\"))
+                {
+                    sb.AppendFormat("{0}{1}.db", filePath, dbName);
+                }
+                else
+                {
+                    sb.AppendFormat("{0}/{1}.db", filePath, dbName);
+                }
+                Open(sb.ToString());
+            }
+            catch (Exception ex)
+            {
+                Close();
+                throw new DatabaseException(
+                    String.Format("Cannot open vehicle database! file path = \"{0}\", database name = \"{1}\", error message: {2}", 
+                        filePath, dbName, ex.Message));
+            }
+        }
 
-		public void Open (string absoluteFilePath)
-		{
-			try {
-				ConnectionStringBuilder connstr = new ConnectionStringBuilder ();
-				connstr.DataSource = absoluteFilePath;
-				conn = new Connection ();
-				conn.ConnectionString = connstr.ToString ();
-				conn.Open ();
+        public void Open(string absoluteFilePath)
+        {
+            try
+            {
+                ConnectionStringBuilder connstr = new ConnectionStringBuilder();
+                connstr.DataSource = absoluteFilePath;
+                conn = new Connection();
+                conn.ConnectionString = connstr.ToString();
+                conn.Open();
 
-				cmdCommand = new Command (
-					"SELECT [Command] FROM [Command] WHERE [Name]=:name AND [Class]=:class", 
-					conn);
-				cmdCommand.Parameters.Add (":name", DbType.Binary);
-				cmdCommand.Parameters.Add (":class", DbType.Binary);
+                cmdCommand = new Command(
+                    "SELECT [Command] FROM [Command] WHERE [Name]=:name AND [Class]=:class", 
+                    conn);
+                cmdCommand.Parameters.Add(":name", DbType.Binary);
+                cmdCommand.Parameters.Add(":class", DbType.Binary);
 
-				textCommand = new Command (
-					"SELECT [Content] FROM [Text] WHERE [Name]=:name AND [Language]=:language AND [Class]=:class",
-					conn);
-				textCommand.Parameters.Add (":name", DbType.Binary);
-				textCommand.Parameters.Add (":language", DbType.Binary);
-				textCommand.Parameters.Add (":class", DbType.Binary);
+                textCommand = new Command(
+                    "SELECT [Content] FROM [Text] WHERE [Name]=:name AND [Language]=:language AND [Class]=:class",
+                    conn);
+                textCommand.Parameters.Add(":name", DbType.Binary);
+                textCommand.Parameters.Add(":language", DbType.Binary);
+                textCommand.Parameters.Add(":class", DbType.Binary);
 
-				troubleCodeCommand = new Command (
-					"SELECT [Content], [Description] FROM [TroubleCode] WHERE [Code]=:code AND [Language]=:language AND [Class]=:class",
-					conn);
-				troubleCodeCommand.Parameters.Add (":code", DbType.Binary);
-				troubleCodeCommand.Parameters.Add (":language", DbType.Binary);
-				troubleCodeCommand.Parameters.Add (":class", DbType.Binary);
+                troubleCodeCommand = new Command(
+                    "SELECT [Content], [Description] FROM [TroubleCode] WHERE [Code]=:code AND [Language]=:language AND [Class]=:class",
+                    conn);
+                troubleCodeCommand.Parameters.Add(":code", DbType.Binary);
+                troubleCodeCommand.Parameters.Add(":language", DbType.Binary);
+                troubleCodeCommand.Parameters.Add(":class", DbType.Binary);
 
-				liveDataCommand = new Command (
-					"SELECT [ShortName], [Content], [Unit], [DefaultValue], [CommandName], [CommandClass], [Description], [Index] FROM [LiveData] WHERE [Language]=:language AND [Class]=:class",
-					conn);
-				liveDataCommand.Parameters.Add (":language", DbType.Binary);
-				liveDataCommand.Parameters.Add (":class", DbType.Binary);
-			} catch (Exception ex) {
-				Close ();
-				throw new DatabaseException (
-					String.Format ("Cannot open vehicle database! file path = \"{0}\", error message: {1}", 
-						absoluteFilePath, ex.Message));
-			}
-		}
+                liveDataCommand = new Command(
+                    "SELECT [ShortName], [Content], [Unit], [DefaultValue], [CommandName], [CommandClass], [Description], [Index] FROM [LiveData] WHERE [Language]=:language AND [Class]=:class",
+                    conn);
+                liveDataCommand.Parameters.Add(":language", DbType.Binary);
+                liveDataCommand.Parameters.Add(":class", DbType.Binary);
+            }
+            catch (Exception ex)
+            {
+                Close();
+                throw new DatabaseException(
+                    String.Format("Cannot open vehicle database! file path = \"{0}\", error message: {1}", 
+                        absoluteFilePath, ex.Message));
+            }
+        }
 
-		public void Close ()
-		{
-			liveDataCommand.Dispose ();
-			troubleCodeCommand.Dispose ();
-			textCommand.Dispose ();
-			cmdCommand.Dispose ();
-			conn.Close ();
-		}
+        public void Close()
+        {
+            liveDataCommand.Dispose();
+            troubleCodeCommand.Dispose();
+            textCommand.Dispose();
+            cmdCommand.Dispose();
+            conn.Close();
+        }
 
-		public byte[] QueryCommand (string name, string cls)
-		{
-			Action ThrowException = () => {
-				throw new DatabaseException (String.Format ("Query command fail by name = {0}, class = {1}",
-					name, cls));
-			};
+        private byte[] Encrypt(string plain)
+        {
+            if (!encryptMap.ContainsKey(plain))
+            {
+                encryptMap.Add(plain, DBCrypto.Encrypt(plain));
+            }
+            return encryptMap[plain];
+        }
 
-			cmdCommand.Prepare ();
-			byte[] enName = null;
-			byte[] enCls = null;
+        private byte[] EncryptLang
+        {
+            get { return Encrypt(Settings.LanguageText); }
+        }
 
-			try {
-				enName = DBCrypto.Encrypt (name);
-				enCls = DBCrypto.Encrypt (cls);
-			} catch {
-				ThrowException ();
-			}
+        public byte[] QueryCommand(string name, string cls)
+        {
+            Action ThrowException = () =>
+            {
+                throw new DatabaseException(String.Format("Query command fail by name = {0}, class = {1}",
+                    name, cls));
+            };
 
-			cmdCommand.Parameters [0].Value = enName;
-			cmdCommand.Parameters [1].Value = enCls;
+            string key = String.Format("{0}_{1}", name, cls);
 
-			try {
-				using (var reader = cmdCommand.ExecuteReader ()) {
-					if (reader.Read ()) {
-						DBCrypto.DecryptToBytes (reader.GetFieldValue<byte[]> (0));
-					}
-				}
-			} catch {
-				ThrowException ();
-			}
+            if (!commandMap.ContainsKey(key))
+            {
+                try
+                {
+                    cmdCommand.Prepare();
+                    cmdCommand.Parameters[0].Value = Encrypt(name);
+                    cmdCommand.Parameters[1].Value = Encrypt(cls);
+                    using (var reader = cmdCommand.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            commandMap.Add(key, DBCrypto.DecryptToBytes(reader.GetFieldValue<byte[]>(0)));
+                        }
+                    }
+                }
+                catch
+                {
+                    ThrowException();
+                }
+            }
 
-			ThrowException ();
-			return null;
-		}
+            return commandMap[key];
+        }
 
-		public string QueryText (string name, string cls)
-		{
-			Action ThrowException = () => {
-				throw new DatabaseException (String.Format ("Query text fail by name = {0}, class = {1}",
-					name, cls));
-			};
+        public string QueryText(string name, string cls)
+        {
+            Action ThrowException = () =>
+            {
+                throw new DatabaseException(String.Format("Query text fail by name = {0}, class = {1}",
+                    name, cls));
+            };
 
-			textCommand.Prepare ();
+            string key = String.Format("{0}_{1}_{2}", name, Settings.LanguageText, cls);
 
-			byte[] enName = null;
-			byte[] enCls = null;
+            if (!decryptMap.ContainsKey(key))
+            {
 
-			try {
-				enName = DBCrypto.Encrypt (name);
-				enCls = DBCrypto.Encrypt (cls);
-			} catch {
-				ThrowException ();
-			}
-				
-			textCommand.Parameters [0].Value = enName;
-			textCommand.Parameters [1].Value = DBCrypto.Language;
-			textCommand.Parameters [2].Value = enCls;
+                try
+                {
+                    textCommand.Prepare();
 
-			try {
-				using (var reader = textCommand.ExecuteReader ()) {
-					if (reader.Read ()) {
-						return DBCrypto.Decrypt (name, cls, reader.GetFieldValue<byte[]> (0));
-					}
-				}
-			} catch {
-				ThrowException ();
-			}
+                    textCommand.Parameters[0].Value = Encrypt(name);
+                    textCommand.Parameters[1].Value = EncryptLang;
+                    textCommand.Parameters[2].Value = Encrypt(cls);
 
-			ThrowException ();
-			return null;
-		}
+                    using (var reader = textCommand.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            decryptMap.Add(key, DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(0)));
+                        }
+                        else
+                        {
+                            ThrowException();
+                        }
+                    }
+                }
+                catch (DatabaseException)
+                {
+                    throw;
+                }
+                catch
+                {
+                    ThrowException();
+                }
+            }
+            return decryptMap[key];
+        }
 
-		public TroubleCodeItem QueryTroubleCode (string code, string cls)
-		{
-			Action ThrowException = () => {
-				throw new DatabaseException (String.Format ("Query trouble code fail by code = {0}, class = {1}",
-					code, cls));
-			};
+        public TroubleCodeItem QueryTroubleCode(string code, string cls)
+        {
+            Action ThrowException = () =>
+            {
+                throw new DatabaseException(String.Format("Query trouble code fail by code = {0}, class = {1}",
+                    code, cls));
+            };
 
-			troubleCodeCommand.Prepare ();
+            try
+            {
+                troubleCodeCommand.Prepare();
 
-			byte[] enCode = null;
-			byte[] enCls = null;
+                troubleCodeCommand.Parameters[0].Value = Encrypt(code);
+                troubleCodeCommand.Parameters[1].Value = EncryptLang;
+                troubleCodeCommand.Parameters[2].Value = Encrypt(cls);
 
-			try {
-				enCode = DBCrypto.Encrypt (code);
-				enCls = DBCrypto.Encrypt (cls);
-			} catch {
-				ThrowException ();
-			}
+                using (var reader = troubleCodeCommand.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        TroubleCodeItem item = new TroubleCodeItem();
+                        item.Code = code;
+                        item.Content = DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(0));
 
-			troubleCodeCommand.Parameters [0].Value = enCode;
-			troubleCodeCommand.Parameters [1].Value = DBCrypto.Language;
-			troubleCodeCommand.Parameters [2].Value = enCls;
+                        if (!reader.IsDBNull(1))
+                            item.Description = DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(1));
+                        return item;
+                    }
+                }
+            }
+            catch
+            {
+                ThrowException();
+            }
 
-			try {
-				using (var reader = troubleCodeCommand.ExecuteReader ()) {
-					if (reader.Read ()) {
-						TroubleCodeItem item = new TroubleCodeItem ();
-						item.Code = code;
-						item.Content = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (0));
+            ThrowException();
+            return null;
+        }
 
-						if (!reader.IsDBNull (1))
-							item.Description = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (1));
-						return item;
-					}
-				}
-			} catch {
-				ThrowException ();
-			}
+        public LiveDataList QueryLiveData(string cls)
+        {
+            Action ThrowException = () =>
+            {
+                throw new DatabaseException(String.Format("Query live data fail by class = {0}", cls));
+            };
 
-			ThrowException ();
-			return null;
-		}
+            try
+            {
+                liveDataCommand.Prepare();
 
-		public LiveDataList QueryLiveData (string cls)
-		{
-			Action ThrowException = () => {
-				throw new DatabaseException (String.Format ("Query live data fail by class = {0}", cls));
-			};
+                liveDataCommand.Parameters[0].Value = EncryptLang;
+                liveDataCommand.Parameters[1].Value = Encrypt(cls);
 
-			liveDataCommand.Prepare ();
+                using (var reader = liveDataCommand.ExecuteReader())
+                {
+                    LiveDataList list = new LiveDataList();
+                    while (reader.Read())
+                    {
+                        LiveDataItem item = new LiveDataItem();
 
-			byte[] enCls = null;
+                        item.ShortName = DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(0));
 
-			try {
-				enCls = DBCrypto.Encrypt (cls);
-			} catch {
-				ThrowException ();
-			}
+                        item.Content = DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(1));
 
-			liveDataCommand.Parameters [0].Value = DBCrypto.Language;
-			liveDataCommand.Parameters [1].Value = enCls;
+                        item.Unit = reader.IsDBNull(2) ? "" : DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(2));
 
-			try {
-				using (var reader = liveDataCommand.ExecuteReader ()) {
-					LiveDataList list = new LiveDataList ();
-					while (reader.Read ()) {
-						LiveDataItem item = new LiveDataItem ();
+                        item.DefaultValue = reader.IsDBNull(3) ? "" : DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(3));
 
-						item.ShortName = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (0));
+                        if (!reader.IsDBNull(4) && !reader.IsDBNull(5))
+                        {
+                            item.CmdName = DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(4));
+                            item.CmdClass = DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(5));
+                            item.Command = QueryCommand(item.CmdName, item.CmdClass);
+                        }
 
-						item.Content = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (1));
+                        item.Description = reader.IsDBNull(6) ? "" : DBCrypto.DecryptToString(reader.GetFieldValue<byte[]>(6));
+                        byte[] indexArray = DBCrypto.DecryptToBytes(reader.GetFieldValue<byte[]>(7));
+                        int index = ((indexArray[3] & 0xFF) << 24) +
+                        ((indexArray[2] & 0xFF) << 16) +
+                        ((indexArray[1] & 0xFF) << 8) +
+                        (indexArray[0] & 0xFF);
 
-						item.Unit = reader.IsDBNull (2) ? "" : DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (2));
+                        item.IndexForSort = index;
 
-						item.DefaultValue = reader.IsDBNull (3) ? "" : DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (3));
+                        list.Add(item);
+                    }
 
-						if (!reader.IsDBNull (4) && !reader.IsDBNull (5)) {
-							item.CmdName = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (4));
-							item.CmdClass = DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (5));
-							item.Command = QueryCommand (item.CmdName, item.CmdClass);
-						}
+                    return list;
+                } 
+            }
+            catch
+            {
+                ThrowException();
+            }
 
-						item.Description = reader.IsDBNull (6) ? "" : DBCrypto.DecryptToString (reader.GetFieldValue<byte[]> (6));
-						byte[] indexArray = DBCrypto.DecryptToBytes (reader.GetFieldValue<byte[]> (7));
-						int index = ((indexArray [3] & 0xFF) << 24) +
-						            ((indexArray [2] & 0xFF) << 16) +
-						            ((indexArray [1] & 0xFF) << 8) +
-						            (indexArray [0] & 0xFF);
-
-						item.IndexForSort = index;
-
-						list.Add (item);
-					}
-
-					return list;
-				}
-			} catch {
-				ThrowException ();
-			}
-
-			ThrowException ();
-			return null;
-		}
-		#if __ANDROID__
-		public static void CopyDatabase (Context context, string dbName)
-		{
-			using (Stream istream = context.Assets.Open (dbName)) {
-				using (SQLiteDatabase db = context.OpenOrCreateDatabase (dbName, FileCreationMode.Private, null)) {
-				}
-				using (Stream ostream = new FileStream (context.GetDatabasePath (dbName).AbsolutePath, FileMode.Open)) {
-					byte[] buffer = new byte[1024];
-					int length = 0;
-					while ((length = istream.Read (buffer, 0, buffer.Length)) > 0) {
-						ostream.Write (buffer, 0, length);
-					}
-				}
-			}
-		}
-		#endif
-	}
+            ThrowException();
+            return null;
+        }
+        #if __ANDROID__
+        public static void CopyDatabase(Context context, string dbName)
+        {
+            using (Stream istream = context.Assets.Open(dbName))
+            {
+                using (SQLiteDatabase db = context.OpenOrCreateDatabase(dbName, FileCreationMode.Private, null))
+                {
+                }
+                using (Stream ostream = new FileStream(context.GetDatabasePath(dbName).AbsolutePath, FileMode.Open))
+                {
+                    byte[] buffer = new byte[1024];
+                    int length = 0;
+                    while ((length = istream.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        ostream.Write(buffer, 0, length);
+                    }
+                }
+            }
+        }
+        #endif
+    }
 }
 

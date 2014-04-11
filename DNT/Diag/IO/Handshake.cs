@@ -11,13 +11,13 @@
 
 namespace System.IO.Ports
 {
-	public enum Handshake
-	{
-		None,
-		XOnXOff,
-		RequestToSend,
-		RequestToSendXOnXOff
-	}
+    public enum Handshake
+    {
+        None,
+        XOnXOff,
+        RequestToSend,
+        RequestToSendXOnXOff
+    }
 }
 
 #endif

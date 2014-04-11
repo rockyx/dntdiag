@@ -11,34 +11,34 @@ using System;
 #if __ANDROID__
 namespace System.IO.Ports
 {
-	interface ISerialStream : IDisposable
-	{
-		int Read (byte[] buffer, int offset, int count);
+    interface ISerialStream : IDisposable
+    {
+        int Read(byte[] buffer, int offset, int count);
 
-		void Write (byte[] buffer, int offset, int count);
+        void Write(byte[] buffer, int offset, int count);
 
-		void SetAttributes (int baud_rate, Parity parity, int data_bits, StopBits sb, Handshake hs);
+        void SetAttributes(int baud_rate, Parity parity, int data_bits, StopBits sb, Handshake hs);
 
-		void DiscardInBuffer ();
+        void DiscardInBuffer();
 
-		void DiscardOutBuffer ();
+        void DiscardOutBuffer();
 
-		SerialSignal GetSignals ();
+        SerialSignal GetSignals();
 
-		void SetSignal (SerialSignal signal, bool value);
+        void SetSignal(SerialSignal signal, bool value);
 
-		void SetBreakState (bool value);
+        void SetBreakState(bool value);
 
-		void Close ();
+        void Close();
 
-		int BytesToRead { get; }
+        int BytesToRead { get; }
 
-		int BytesToWrite { get; }
+        int BytesToWrite { get; }
 
-		int ReadTimeout { get; set; }
+        int ReadTimeout { get; set; }
 
-		int WriteTimeout { get; set; }
-	}
+        int WriteTimeout { get; set; }
+    }
 }
 
 #endif

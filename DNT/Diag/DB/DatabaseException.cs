@@ -2,12 +2,12 @@
 
 namespace DNT.Diag.DB
 {
-	public class DatabaseException : Exception
-	{
-		public DatabaseException (string message)
+    public class DatabaseException : Exception
+    {
+        public DatabaseException(string message)
 			: base(message)
-		{
-		}
-	}
+        {
+        }
+    }
 }
 
